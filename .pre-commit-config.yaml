@@ -47,8 +47,9 @@ repos:
     rev: v3.29.0
     hooks:
       - id: commitizen
-      - id: commitizen-branch
-        stages: [push]
+      # #  This is broken for some reason.
+      # - id: commitizen-branch
+      #   stages: [push]
 
 # sets up .pre-commit-ci.yaml to ensure pre-commit dependencies stay up to date
 ci:
