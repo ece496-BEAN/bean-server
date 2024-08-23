@@ -1,7 +1,7 @@
 { pkgs, lib, config, inputs, ... }:
 
 {
-  packages = with pkgs; [ 
+  packages = with pkgs; [
     git # Source code versioning
     zellij # A better tmux (terminal multiplexer)
     atuin # Command history, to use it with fish, follow this: https://docs.atuin.sh/guide/installation/#installing-the-shell-plugin
@@ -19,11 +19,11 @@
     enable = true;
     version = "3.12.4";
     venv.enable = true;
-    venv.requirements = "requirements/local.txt"
   };
 
 
   enterShell = ''
+  pip install -r requirements/local.txt
   pre-commit install
   '';
 }
