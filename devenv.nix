@@ -21,6 +21,13 @@
     venv.enable = true;
   };
 
+  services.postgres = {
+    enable = true;
+    initialDatabases = [
+      { name = "beanserver"; }
+    ];
+  };
+
 
   enterShell = ''
   pip install -r requirements/local.txt

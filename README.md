@@ -11,6 +11,9 @@ License: MIT
 
 Moved to [settings](http://cookiecutter-django.readthedocs.io/en/latest/settings.html).
 
+## Developer Environment Setup
+- `devenv shell` to get all the resources.
+- `devenv up -d` to start necessary services, such as Postgres.
 ## Basic Commands
 
 ### Setting Up Your Users
