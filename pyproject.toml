@@ -126,6 +126,9 @@ ignore = [
           # of types for comparison.
           # Deactivated because it can make the code slow:
           # https://github.com/astral-sh/ruff/issues/7871
+  "TCH001", # Checks for first-party imports that are only used for type annotations, but aren't defined in a type-checking block.
+            # Deactivated due to conflicts with BearType.
+  "TCH002", "TCH003", # Similar to TCH001.
 ]
 # The fixes in extend-unsafe-fixes will require
 # provide the `--unsafe-fixes` flag when fixing.

@@ -4,13 +4,11 @@ import typing
 
 from allauth.account.adapter import DefaultAccountAdapter
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
+from allauth.socialaccount.models import SocialLogin
 from django.conf import settings
+from django.http import HttpRequest
 
-if typing.TYPE_CHECKING:
-    from allauth.socialaccount.models import SocialLogin
-    from django.http import HttpRequest
-
-    from beanserver.users.models import User
+from beanserver.users.models import User
 
 
 class AccountAdapter(DefaultAccountAdapter):
