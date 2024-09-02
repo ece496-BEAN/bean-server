@@ -51,7 +51,7 @@ beartype==0.18.5 # https://github.com/beartype/beartype
 
 # Documentation
 # ------------------------------------------------------------------------------
-sphinx==7.4.7  # https://github.com/sphinx-doc/sphinx
+sphinx==8.0.2  # https://github.com/sphinx-doc/sphinx
 sphinx-autobuild==2024.4.16 # https://github.com/GaretJax/sphinx-autobuild
 
 # Code quality
