@@ -30,9 +30,9 @@ jobs:
     - name: Install devenv.sh
       run: nix profile install nixpkgs#devenv
     - name: Run pre-commit hooks
-      shell: devenv shell bash -e {0}
+      shell: devenv shell bash -- -e {0}
       run: |
-        echo "hi"
+        pre-commit run -a
 
   # With no caching at all the entire ci process takes 3m to complete!
   pytest:
