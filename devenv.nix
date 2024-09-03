@@ -2,9 +2,6 @@
 
 {
   packages = with pkgs; [
-    # git
-    # pre-commit
-    postgresql_16 # Database system
     # Python configured below
   ];
 
@@ -17,6 +14,7 @@
 
   services.postgres = {
     enable = true;
+    package = pkgs.postgresql_16;
     initialDatabases = [
       { name = "beanserver"; }
     ];
@@ -96,6 +94,4 @@
     types_or = ["html"];
   };
 
-  enterShell = ''
-  '';
 }

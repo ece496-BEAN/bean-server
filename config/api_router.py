@@ -12,4 +12,4 @@ router = DefaultRouter() if settings.DEBUG else SimpleRouter()
 router.register("users", UserViewSet)
 
 app_name = "api"
-urlpatterns = [path("/", include(router.urls)), path("budgets/", BudgetList.as_view())]
+urlpatterns = [path("", include(router.urls)), path("budgets/", BudgetList.as_view())]
