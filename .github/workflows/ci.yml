@@ -22,6 +22,7 @@ jobs:
     - uses: cachix/cachix-action@v14
       with:
         name: devenv
+    - uses: DeterminateSystems/magic-nix-cache-action@main
     - name: Install devenv.sh
       run: nix profile install nixpkgs#devenv
     - name: Run pre-commit hooks
@@ -38,6 +39,7 @@ jobs:
     - uses: cachix/cachix-action@v14
       with:
         name: devenv
+    - uses: DeterminateSystems/magic-nix-cache-action@main
     - name: Install devenv.sh
       run: nix profile install nixpkgs#devenv
     - name: Run pre-commit hooks
