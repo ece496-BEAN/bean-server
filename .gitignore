@@ -282,3 +282,6 @@ dump.rdb
 beanserver/media/
 
 .pytest_cache/
+
+### VSCode
+.vscode
