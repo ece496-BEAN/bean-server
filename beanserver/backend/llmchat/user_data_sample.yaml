@@ -1,0 +1,23 @@
+income:
+  - category: employment-based
+    sub_categories:
+      - category: full-time
+        sub_categories:
+          - category: Intel
+            amount:
+              - type: recurring
+                data:  "2000 every 2 weeks" # TODO: we need some way of representing a wide variety of frequency formats
+savings: # TODO: come up with savings categories
+  - category: long-term
+    sub_categories:
+      - category: TD RRSP
+        amount:
+          - type: one-time
+            data: 10000
+expenses:
+  - category: food & beverages
+    sub_categories:
+      - category: groceries
+        amount:
+          - type: recurring
+            data: "100 every week"
