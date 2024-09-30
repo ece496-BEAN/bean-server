@@ -42,7 +42,12 @@ Werkzeug[watchdog]==3.0.4 # https://github.com/pallets/werkzeug
 ipdb==0.13.13  # https://github.com/gotcha/ipdb
 psycopg[binary]==3.2.1  # https://github.com/psycopg/psycopg
 python-lsp-server[all]==1.12.0 # https://github.com/python-lsp/python-lsp-server
+pylsp-rope==0.1.16 # https://github.com/python-rope/pylsp-rope
+rope==1.13.0 # https://github.com/python-rope/rope
 httpie==3.2.3 # https://github.com/httpie/cli
+pandas==2.2.3 # https://github.com/pandas-dev/pandas
+dash==2.18.1 # https://github.com/plotly/dash
+dash-ag-grid==31.2.0 # https://github.com/plotly/dash-ag-grid
 
 # Testing
 # ------------------------------------------------------------------------------

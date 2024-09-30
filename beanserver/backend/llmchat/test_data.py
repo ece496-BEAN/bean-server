@@ -1,10 +1,30 @@
 # ruff: noqa
-
-from datetime import datetime
+from dash import Dash, html, dcc, callback, Output, Input
+import itertools
+from datetime import MINYEAR
+from datetime import datetime, timedelta
 
 from dateutil.rrule import MONTHLY
 from dateutil.rrule import rrule
 from transaction import MonthlyTransaction
+from transaction import SingleTransaction
+from transaction import Transaction
+from dateutil.utils import today
+import pandas as pd
+import plotly.express as px
+import dash_ag_grid as dag
+
+datetime_today = datetime(
+    datetime.today().year,
+    datetime.today().month,
+    datetime.today().day,
+)
+datetime_yesterday = datetime_today - timedelta(days=1)
+datetime_transaction_start = datetime(
+    datetime_today.year,
+    datetime_today.month,
+    1,
+)
 
 budgets = [
     ["Groceries (all food and non-alcoholic drinks purchased for home)", 200],
@@ -31,35 +51,99 @@ budgets = [
     ["Events & Activities (concerts, movies, gyms)", 80],
 ]
 
-datetime_today = datetime(
-    datetime.today().year,
-    datetime.today().month,
-    datetime.today().day,
-)
 
 budget_transactions = [
     MonthlyTransaction(
         description=cat[0],
         monthly_transaction_value=-1 * cat[1],
-        frequency=rrule(MONTHLY, dtstart=datetime_today),
+        frequency=rrule(MONTHLY, dtstart=datetime_transaction_start),
     )
     for cat in budgets
 ]
 
-if __name__ == "__main__":
-    print(sum(t.monthly_transaction_value for t in budget_transactions))
-    print(
-        sum(
-            [
-                t.get_total_value(
-                    datetime_today,
-                    datetime_today.replace(year=datetime_today.year + 1),
-                    inc=True,
-                )
-                for t in budget_transactions
-            ],
-        ),
+incomes = [
+    ["Intel", 4000],
+    ["TA UofT", 400],
+    ["CASH.TO", 100],
+]
+income_transactions = [
+    MonthlyTransaction(
+        description=cat[0],
+        monthly_transaction_value=cat[1],
+        frequency=rrule(MONTHLY, dtstart=datetime_transaction_start),
     )
-    # print([t.frequency.between(date.today(), date(2030, 1, 1), inc=True)
-    #       for t in budget_transactions])
-    # print([t.frequency for t in budget_transactions])
+    for cat in incomes
+]
+
+
+savings_transactions = [
+    SingleTransaction(description=cat[0], transaction_value=cat[1], transaction_date=datetime_today)
+    for cat in [["TD Chequing", 2000], ["TD Savings", 5000], ["WS Cash", 10000], ["WS TFSA", 15000]]
+]
+
+all_transactions: [Transaction] = list(itertools.chain(budget_transactions, income_transactions, savings_transactions))
+
+#########
+date_query_range = rrule(MONTHLY, datetime_today)
+
+dates = list(date_query_range.xafter(datetime_yesterday, 13))
+savings_values = [
+    Transaction.sum_total_values(
+        all_transactions,
+        datetime_yesterday,
+        end_date,
+        inc=True,
+    )
+    for end_date in dates
+]
+df = pd.DataFrame({"Date": dates, "Savings": savings_values})
+
+toggle_column_defs = [{"field": "transaction"}, {"field": "enabled", "cellDataType": "boolean", "editable": True}]
+row_data = [
+    {
+        "transaction": t.description,
+        "enabled": True,
+    }
+    for t in all_transactions
+]
+
+app = Dash()
+app.layout = [
+    html.H1(children="Your Savings Graph", style={"textAlign": "center"}),
+    # dcc.Dropdown(df.country.unique(), "Canada", id="dropdown-selection"),
+    dcc.Graph(id="graph-content", figure=px.line(df, x="Date", y="Savings")),
+    dag.AgGrid(
+        id="transaction-toggles",
+        columnDefs=toggle_column_defs,
+        rowData=row_data,
+        defaultColDef={"editable": False},
+        dashGridOptions={"animateRows": False},
+    ),
+]
+
+
+@callback(Output("graph-content", "figure"), Input("transaction-toggles", "cellValueChanged"))
+def update_graph(cell_changes):
+    if cell_changes is not None:
+        for cell_change in cell_changes:
+            row_data[cell_change["rowIndex"]]["enabled"] = cell_change["data"]["enabled"]
+
+    savings_values = [
+        Transaction.sum_total_values(
+            (t for (t, data) in zip(all_transactions, row_data, strict=True) if data["enabled"]),
+            datetime_yesterday,
+            end_date,
+            inc=True,
+        )
+        for end_date in dates
+    ]
+    df = pd.DataFrame({"Date": dates, "Savings": savings_values})
+    return px.line(df, x="Date", y="Savings")
+
+
+if __name__ == "__main__":
+    # print(sum(t.monthly_transaction_value for t in budget_transactions))
+    # print(sum(t.monthly_transaction_value for t in income_transactions))
+
+    # app.run(debug=True)
+    app.run(debug=False)

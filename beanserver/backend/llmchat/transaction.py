@@ -1,6 +1,7 @@
 from abc import ABC
 from abc import abstractmethod
-from datetime import date
+from collections.abc import Iterable
+from datetime import datetime
 
 from dateutil.rrule import rrule
 from pydantic import BaseModel
@@ -17,12 +18,44 @@ class Transaction(ABC, BaseModel):
     @abstractmethod
     def get_total_value(
         self,
-        start_date: date,
-        end_date: date,
+        start_date: datetime,
+        end_date: datetime,
         *,
         inc: bool = False,
     ) -> Dollar:
         pass
+
+    @staticmethod
+    def sum_total_values(
+        transactions: Iterable["Transaction"],
+        start_date: datetime,
+        end_date: datetime,
+        *,
+        inc: bool = False,
+    ) -> Dollar:
+        return sum(t.get_total_value(start_date, end_date, inc=inc) for t in transactions)
+
+
+class SingleTransaction(Transaction):
+    transaction_value: Dollar
+    transaction_date: datetime
+
+    def get_total_value(
+        self,
+        start_date: datetime,
+        end_date: datetime,
+        *,
+        inc: bool = False,
+    ) -> Dollar:
+        if inc:
+            return (
+                self.transaction_value
+                if (self.transaction_date >= start_date and self.transaction_date <= end_date)
+                else 0
+            )
+        return (
+            self.transaction_value if (self.transaction_date > start_date and self.transaction_date < end_date) else 0
+        )
 
 
 class MonthlyTransaction(Transaction):
@@ -32,8 +65,8 @@ class MonthlyTransaction(Transaction):
 
     def get_total_value(
         self,
-        start_date: date,
-        end_date: date,
+        start_date: datetime,
+        end_date: datetime,
         *,
         inc: bool = False,
     ) -> Dollar:
