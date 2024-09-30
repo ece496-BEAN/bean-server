@@ -1,18 +1,25 @@
 # ruff: noqa
-from dash import Dash, html, dcc, callback, Output, Input
 import itertools
 from datetime import MINYEAR
-from datetime import datetime, timedelta
+from datetime import datetime
+from datetime import timedelta
 
-from dateutil.rrule import MONTHLY
-from dateutil.rrule import rrule
-from transaction import MonthlyTransaction
-from transaction import SingleTransaction
-from transaction import Transaction
-from dateutil.utils import today
+import dash_ag_grid as dag
 import pandas as pd
 import plotly.express as px
-import dash_ag_grid as dag
+from dash import Dash
+from dash import Input
+from dash import Output
+from dash import callback
+from dash import dcc
+from dash import html
+from dateutil.relativedelta import relativedelta
+from dateutil.rrule import MONTHLY, DAILY
+from dateutil.rrule import rrule
+from dateutil.utils import today
+from transaction import RecurringTransaction
+from transaction import SingleTransaction
+from transaction import Transaction
 
 datetime_today = datetime(
     datetime.today().year,
@@ -53,9 +60,9 @@ budgets = [
 
 
 budget_transactions = [
-    MonthlyTransaction(
+    RecurringTransaction(
         description=cat[0],
-        monthly_transaction_value=-1 * cat[1],
+        recurring_transaction_value=-1 * cat[1],
         frequency=rrule(MONTHLY, dtstart=datetime_transaction_start),
     )
     for cat in budgets
@@ -67,9 +74,9 @@ incomes = [
     ["CASH.TO", 100],
 ]
 income_transactions = [
-    MonthlyTransaction(
+    RecurringTransaction(
         description=cat[0],
-        monthly_transaction_value=cat[1],
+        recurring_transaction_value=cat[1],
         frequency=rrule(MONTHLY, dtstart=datetime_transaction_start),
     )
     for cat in incomes
@@ -81,7 +88,49 @@ savings_transactions = [
     for cat in [["TD Chequing", 2000], ["TD Savings", 5000], ["WS Cash", 10000], ["WS TFSA", 15000]]
 ]
 
-all_transactions: [Transaction] = list(itertools.chain(budget_transactions, income_transactions, savings_transactions))
+onetime_simple_purchase_goals = [
+    # IMPORTANT: note the `- timedelta(days=1)` - this is because we we are calculating time
+    # INCLUSIVE, so we need to have saved everything by the end date
+    # e.g., if today Jan 1 and the end date is Jan 31, then I should be saving money from Jan 1 to Jan 31 inclusive.
+    [
+        "New Phone",
+        rrule(
+            DAILY,
+            dtstart=datetime_transaction_start,
+            until=datetime_transaction_start + relativedelta(years=1) - timedelta(days=1),
+        ),
+        1299.99,
+    ],
+    [
+        "VR Headset",
+        rrule(
+            DAILY,
+            dtstart=datetime_transaction_start,
+            until=datetime_transaction_start + relativedelta(months=3) - timedelta(days=1),
+        ),
+        675.35,
+    ],
+    [
+        "Vacation to Paris",
+        rrule(
+            DAILY,
+            dtstart=datetime_transaction_start,
+            until=datetime_transaction_start + relativedelta(months=15) - timedelta(days=1),
+        ),
+        13500,
+    ],
+]
+
+onetime_simple_purchase_goals_transactions = [
+    RecurringTransaction(description=goal[0], recurring_transaction_value=goal[2] / goal[1].count(), frequency=goal[1])
+    for goal in onetime_simple_purchase_goals
+]
+
+all_transactions: [Transaction] = list(
+    itertools.chain(
+        budget_transactions, income_transactions, savings_transactions, onetime_simple_purchase_goals_transactions
+    )
+)
 
 #########
 date_query_range = rrule(MONTHLY, datetime_today)
@@ -110,7 +159,6 @@ row_data = [
 app = Dash()
 app.layout = [
     html.H1(children="Your Savings Graph", style={"textAlign": "center"}),
-    # dcc.Dropdown(df.country.unique(), "Canada", id="dropdown-selection"),
     dcc.Graph(id="graph-content", figure=px.line(df, x="Date", y="Savings")),
     dag.AgGrid(
         id="transaction-toggles",

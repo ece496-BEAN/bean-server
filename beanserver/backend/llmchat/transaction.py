@@ -7,7 +7,7 @@ from dateutil.rrule import rrule
 from pydantic import BaseModel
 from pydantic import ConfigDict
 
-Dollar = int
+Dollar = float
 Description = str
 Day = int
 
@@ -58,10 +58,11 @@ class SingleTransaction(Transaction):
         )
 
 
-class MonthlyTransaction(Transaction):
+class RecurringTransaction(Transaction):
     model_config = ConfigDict(arbitrary_types_allowed=True)
+    """Note: the rrule class encompasses the frequency of the transaction (daily, monthly, etc.)"""
     frequency: rrule
-    monthly_transaction_value: Dollar
+    recurring_transaction_value: Dollar
 
     def get_total_value(
         self,
@@ -70,6 +71,6 @@ class MonthlyTransaction(Transaction):
         *,
         inc: bool = False,
     ) -> Dollar:
-        return self.monthly_transaction_value * len(
+        return self.recurring_transaction_value * len(
             self.frequency.between(start_date, end_date, inc),
         )
