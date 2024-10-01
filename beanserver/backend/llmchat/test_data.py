@@ -20,6 +20,7 @@ from dateutil.utils import today
 from transaction import RecurringTransaction
 from transaction import SingleTransaction
 from transaction import Transaction
+from beanserver.backend.llmchat.transaction import Dollar
 
 datetime_today = datetime(
     datetime.today().year,
@@ -122,7 +123,9 @@ onetime_simple_purchase_goals = [
 ]
 
 onetime_simple_purchase_goals_transactions = [
-    RecurringTransaction(description=goal[0], recurring_transaction_value=goal[2] / goal[1].count(), frequency=goal[1])
+    RecurringTransaction(
+        description=goal[0], recurring_transaction_value=-1 * goal[2] / goal[1].count(), frequency=goal[1]
+    )
     for goal in onetime_simple_purchase_goals
 ]
 
@@ -133,18 +136,18 @@ all_transactions: [Transaction] = list(
 )
 
 #########
-date_query_range = rrule(MONTHLY, datetime_today)
+date_query_range = rrule(DAILY, datetime_today)
 
-dates = list(date_query_range.xafter(datetime_yesterday, 13))
-savings_values = [
-    Transaction.sum_total_values(
-        all_transactions,
-        datetime_yesterday,
-        end_date,
-        inc=True,
-    )
-    for end_date in dates
-]
+dates = list(date_query_range.xafter(datetime_today, count=1000, inc=True))
+savings_values: [Dollar] = []
+prev = 0
+INTEREST_RATE = 0.05
+for date in dates:
+    savings_change = Transaction.sum_total_values(all_transactions, date, date, inc=True)
+    savings_values.append(prev + savings_change)
+    prev = prev + savings_change
+    prev = prev * (1 + INTEREST_RATE)
+
 df = pd.DataFrame({"Date": dates, "Savings": savings_values})
 
 toggle_column_defs = [{"field": "transaction"}, {"field": "enabled", "cellDataType": "boolean", "editable": True}]
