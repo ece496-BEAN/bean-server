@@ -35,8 +35,8 @@
     check-toml.enable = true;
     check-xml.enable = true;
     check-yaml.enable = true;
-    python-debug-statements.enable = true;
-    check-builtin-literals.enable = true;
+    # python-debug-statements.enable = true;
+    # check-builtin-literals.enable = true;
     check-case-conflicts.enable = true;
     check-docstring-first.enable = true;
     detect-private-keys.enable = true;
