@@ -10,18 +10,34 @@ from beanserver.users.models import User
 
 class Budget(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.charField(max_length=100, blank=False)
+    name = models.CharField(max_length=100, blank=False, default="Default Budget Name")
     description = models.CharField(max_length=255, blank=True, default="")
 
     # Delete all user owned data when user is deleted
-    owner = models.ForeignKey(User, related_name="id", on_delete=models.CASCADE)
+    owner = models.ForeignKey(User, related_name="budget", on_delete=models.CASCADE)
 
-    # Date Range of the Budget
-    start_date = models.DateTimeField()
-    end_date = models.DateTimeField()
+    # Date Range of the Budget (Forced to do this by the linter)
+    start_date = models.DateTimeField(default=timezone.now().date().replace(day=1))
+    end_date = models.DateTimeField(
+        default=timezone.now().date().replace(day=1).replace(month=12, day=31)
+        if timezone.now().date().month == 1
+        else timezone.now().date().replace(month=timezone.now().date().month + 1, day=1)
+        - datetime.timedelta(days=1),
+    )
 
     def __str__(self) -> str:
-        return "TODO"
+        return "Budget: " + self.name
+
+    def last_day_of_month(self, a_date=None) -> datetime.datetime:
+        target_date = a_date if a_date else timezone.now().date()
+        # The day 28 exists in every month. 4 days later, it's always next month
+        next_month = target_date.replace(day=28) + datetime.timedelta(days=4)
+        # subtracting the number of the current day brings us back one month
+        return next_month - datetime.timedelta(days=next_month.day)
+
+    def first_day_of_month(self, a_date=None):
+        target_date = a_date if a_date else timezone.now().date()
+        return target_date.replace(day=1)
 
     def in_budget_time_period(self, date: datetime.datetime) -> bool:
         return self.start_date <= date <= self.end_date
@@ -29,15 +45,15 @@ class Budget(models.Model):
 
 class Category(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.charField(max_length=100, blank=False)
+    name = models.CharField(max_length=100, blank=False, name="Default Category")
     description = models.CharField(max_length=255, blank=True, default="")
     # Set using `pre_delete` signal handlers
     legacy = models.BooleanField(default=False)
     # Delete all user owned data when user is deleted
-    owner = models.ForeignKey(User, related_name="id", on_delete=models.CASCADE)
+    owner = models.ForeignKey(User, related_name="category", on_delete=models.CASCADE)
 
     def __str__(self) -> str:
-        return "TODO"
+        return "Category: " + self.name
 
 
 class BudgetItem(models.Model):
@@ -46,14 +62,24 @@ class BudgetItem(models.Model):
     # set to legacy instead for tracking purposes
     category_id = models.ForeignKey(
         Category,
-        related_name="id",
+        related_name="budget_items",
         on_delete=models.RESTRICT,
     )
-    budget_id = models.ForeignKey(Budget, related_name="id", on_delete=models.CASCADE)
+    budget_id = models.ForeignKey(
+        Budget,
+        related_name="budget_items",
+        on_delete=models.CASCADE,
+    )
     allocation = models.IntegerField()
+    # Delete all user owned data when user is deleted
+    owner = models.ForeignKey(
+        User,
+        related_name="budget_items",
+        on_delete=models.CASCADE,
+    )
 
     def __str__(self) -> str:
-        return "TODO"
+        return "BudgetItem: " + self.category_id.name
 
 
 class DocumentScans(models.Model):
@@ -63,20 +89,24 @@ class DocumentScans(models.Model):
     invoice_image = models.ImageField(upload_to="images/")
     # Delete all user owned data when user is deleted
     # TODO: (Need to add a `post_delete` signal handler to delete the files as well)
-    owner = models.ForeignKey(User, related_name="id", on_delete=models.CASCADE)
+    owner = models.ForeignKey(User, related_name="doc_scans", on_delete=models.CASCADE)
 
     def __str__(self) -> str:
-        return "TODO"
+        return "DocumentScan: " + self.id
 
 
 class TransactionGroup(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=255, blank=False)
+    name = models.CharField(
+        max_length=255,
+        blank=False,
+        default="Default Transaction Group Name",
+    )
     description = models.CharField(max_length=255, blank=True, default="")
     # `null` means `manual` input
     source = models.ForeignKey(
         DocumentScans,
-        related_name="id",
+        related_name="transaction_groups",
         on_delete=models.RESTRICT,
         null=True,
         blank=True,
@@ -86,25 +116,41 @@ class TransactionGroup(models.Model):
         default=timezone.now,
     )  # Use default instead of auto_now_add to allow date to be updated
     # Delete all user owned data when user is deleted
-    owner = models.ForeignKey(User, related_name="id", on_delete=models.CASCADE)
+    owner = models.ForeignKey(
+        User,
+        related_name="transaction_groups",
+        on_delete=models.CASCADE,
+    )
 
     def __str__(self):
-        return "TODO"
+        return "TransactionGroup: " + self.name
 
 
 class Transaction(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     group_id = models.ForeignKey(
         TransactionGroup,
-        related_name="id",
+        related_name="group",
         on_delete=models.CASCADE,
     )
     amount = models.IntegerField(default=0)
-    name = models.CharField(max_length=100, blank=False)
-    category = models.ForeignKey(Category, related_name="id", on_delete=models.RESTRICT)
+    name = models.CharField(
+        max_length=100,
+        blank=False,
+        default="Default Transaction Name",
+    )
+    category = models.ForeignKey(
+        Category,
+        related_name="transactions",
+        on_delete=models.RESTRICT,
+    )
     description = models.CharField(max_length=255, blank=True, default="")
     # Delete all user owned data when user is deleted
-    owner = models.ForeignKey(User, related_name="id", on_delete=models.CASCADE)
+    owner = models.ForeignKey(
+        User,
+        related_name="transactions",
+        on_delete=models.CASCADE,
+    )
 
     def __str__(self):
-        return "TODO"
+        return "Transaction: " + self.name
