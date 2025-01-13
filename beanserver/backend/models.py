@@ -14,7 +14,12 @@ class Budget(models.Model):
     description = models.CharField(max_length=255, blank=True, default="")
 
     # Delete all user owned data when user is deleted
-    owner = models.ForeignKey(User, related_name="budget", on_delete=models.CASCADE)
+    owner = models.ForeignKey(
+        User,
+        related_name="budget",
+        on_delete=models.CASCADE,
+        null=True,
+    )
 
     # Date Range of the Budget (Forced to do this by the linter)
     start_date = models.DateTimeField(default=timezone.now().date().replace(day=1))
@@ -28,17 +33,6 @@ class Budget(models.Model):
     def __str__(self) -> str:
         return "Budget: " + self.name
 
-    def last_day_of_month(self, a_date=None) -> datetime.datetime:
-        target_date = a_date if a_date else timezone.now().date()
-        # The day 28 exists in every month. 4 days later, it's always next month
-        next_month = target_date.replace(day=28) + datetime.timedelta(days=4)
-        # subtracting the number of the current day brings us back one month
-        return next_month - datetime.timedelta(days=next_month.day)
-
-    def first_day_of_month(self, a_date=None):
-        target_date = a_date if a_date else timezone.now().date()
-        return target_date.replace(day=1)
-
     def in_budget_time_period(self, date: datetime.datetime) -> bool:
         return self.start_date <= date <= self.end_date
 
@@ -50,7 +44,12 @@ class Category(models.Model):
     # Set using `pre_delete` signal handlers
     legacy = models.BooleanField(default=False)
     # Delete all user owned data when user is deleted
-    owner = models.ForeignKey(User, related_name="category", on_delete=models.CASCADE)
+    owner = models.ForeignKey(
+        User,
+        related_name="category",
+        on_delete=models.CASCADE,
+        null=True,
+    )
 
     def __str__(self) -> str:
         return "Category: " + self.name
@@ -76,6 +75,7 @@ class BudgetItem(models.Model):
         User,
         related_name="budget_items",
         on_delete=models.CASCADE,
+        null=True,
     )
 
     def __str__(self) -> str:
@@ -89,7 +89,12 @@ class DocumentScans(models.Model):
     invoice_image = models.ImageField(upload_to="images/")
     # Delete all user owned data when user is deleted
     # TODO: (Need to add a `post_delete` signal handler to delete the files as well)
-    owner = models.ForeignKey(User, related_name="doc_scans", on_delete=models.CASCADE)
+    owner = models.ForeignKey(
+        User,
+        related_name="doc_scans",
+        on_delete=models.CASCADE,
+        null=True,
+    )
 
     def __str__(self) -> str:
         return "DocumentScan: " + self.id
@@ -120,6 +125,7 @@ class TransactionGroup(models.Model):
         User,
         related_name="transaction_groups",
         on_delete=models.CASCADE,
+        null=True,
     )
 
     def __str__(self):
@@ -150,6 +156,7 @@ class Transaction(models.Model):
         User,
         related_name="transactions",
         on_delete=models.CASCADE,
+        null=True,
     )
 
     def __str__(self):
