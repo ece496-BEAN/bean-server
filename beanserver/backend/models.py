@@ -22,11 +22,11 @@ class Budget(models.Model):
     )
 
     # Date Range of the Budget (Forced to do this by the linter)
-    start_date = models.DateTimeField(default=timezone.now().date().replace(day=1))
-    end_date = models.DateTimeField(
-        default=timezone.now().date().replace(day=1).replace(month=12, day=31)
-        if timezone.now().date().month == 1
-        else timezone.now().date().replace(month=timezone.now().date().month + 1, day=1)
+    start_date = models.DateField(default=timezone.now().date().replace(day=1))
+    end_date = models.DateField(
+        default=timezone.now()
+        .date()
+        .replace(month=timezone.now().date().month + 1, day=1)
         - datetime.timedelta(days=1),
     )
 
@@ -39,7 +39,7 @@ class Budget(models.Model):
 
 class Category(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=100, blank=False, name="Default Category")
+    name = models.CharField(max_length=100, blank=False, default="Default Category")
     description = models.CharField(max_length=255, blank=True, default="")
     # Set using `pre_delete` signal handlers
     legacy = models.BooleanField(default=False)
@@ -136,7 +136,7 @@ class Transaction(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     group_id = models.ForeignKey(
         TransactionGroup,
-        related_name="group",
+        related_name="transactions",
         on_delete=models.CASCADE,
     )
     amount = models.IntegerField(default=0)
