@@ -10,6 +10,7 @@ router.register(r"transactions", views.TransactionViewSet)
 router.register(r"transaction-groups", views.TransactionGroupViewSet)
 router.register(r"categories", views.CategoryViewSet)
 router.register(r"budgets", views.BudgetViewSet)
+router.register(r"budget-items", views.BudgetItemViewSet)
 
 urlpatterns = [path("", include(router.urls))]
 urlpatterns = format_suffix_patterns(urlpatterns)

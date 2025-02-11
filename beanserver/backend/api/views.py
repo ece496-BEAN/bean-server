@@ -33,6 +33,24 @@ class BudgetViewSet(viewsets.ModelViewSet):
         return super().perform_destroy(instance)
 
 
+class BudgetItemViewSet(viewsets.ModelViewSet):
+    queryset = models.BudgetItem.objects.all()
+    serializer_class = serializers.BudgetItemSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+
+    def get_queryset(self):
+        return self.queryset.filter(owner=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+    def perform_destroy(self, instance):
+        if instance.owner != self.request.user:
+            raise PermissionDenied(delete_permission_denied_msg)
+        return super().perform_destroy(instance)
+
+
 class TransactionViewSet(viewsets.ModelViewSet):
     queryset = models.Transaction.objects.all()
     serializer_class = serializers.TransactionSerializer

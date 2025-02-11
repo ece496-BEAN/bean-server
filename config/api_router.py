@@ -5,11 +5,9 @@ from rest_framework.routers import DefaultRouter
 from rest_framework.routers import SimpleRouter
 
 from beanserver.backend.api import views
-from beanserver.users.api.views import UserViewSet
 
 router = DefaultRouter() if settings.DEBUG else SimpleRouter()
 
-router.register("users", UserViewSet)
 router.register(r"transactions", views.TransactionViewSet)
 router.register(r"transaction-groups", views.TransactionGroupViewSet)
 router.register(r"categories", views.CategoryViewSet)
