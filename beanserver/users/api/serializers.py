@@ -20,8 +20,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         }  # Don't return password in response
 
     def create(self, validated_data):
-        return User.objects.create_user(
+        user = User.objects.create_user(
             email=validated_data["email"].lower(),
             name=validated_data["name"],
             password=validated_data["password"],
         )
+        user.set_password(validated_data["password"])  # Hash the password
+        user.save()
+        return user
