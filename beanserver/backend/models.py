@@ -96,7 +96,7 @@ class BudgetItem(models.Model):
         related_name="budget_items",
         on_delete=models.CASCADE,
     )
-    allocation = models.IntegerField()
+    allocation = models.DecimalField(decimal_places=2, default=0, max_digits=12)
     # Delete all user owned data when user is deleted
     owner = models.ForeignKey(
         User,
@@ -184,7 +184,7 @@ class Transaction(models.Model):
         related_name="transactions",
         on_delete=models.CASCADE,
     )
-    amount = models.IntegerField(default=0)
+    amount = models.DecimalField(decimal_places=2, default=0, max_digits=12)
     name = models.CharField(
         max_length=100,
         blank=False,
