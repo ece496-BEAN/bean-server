@@ -109,11 +109,10 @@ class BudgetItem(models.Model):
         return "BudgetItem: " + self.category_id.name
 
 
-class DocumentScans(models.Model):
+class DocumentScan(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     ocr_result = models.TextField()  # Use TextField since this field can be very big
     # Delete all user owned data when user is deleted
-    # TODO: (Need to add a `post_delete` signal handler to delete the files as well)
     owner = models.ForeignKey(
         User,
         related_name="doc_scans",
@@ -129,14 +128,12 @@ class Image(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     image = models.ImageField(upload_to="images/")
     source = models.ForeignKey(
-        DocumentScans,
+        DocumentScan,
         related_name="images",
         on_delete=models.CASCADE,
         null=False,
         blank=False,
     )
-    # Delete all user owned data when user is deleted
-    # TODO: (Need to add a `post_delete` signal handler to delete the files as well)
     owner = models.ForeignKey(
         User,
         related_name="images",
@@ -158,7 +155,7 @@ class TransactionGroup(models.Model):
     description = models.CharField(max_length=255, blank=True, default="")
     # `null` means `manual` input
     source = models.ForeignKey(
-        DocumentScans,
+        DocumentScan,
         related_name="transaction_groups",
         on_delete=models.RESTRICT,
         null=True,

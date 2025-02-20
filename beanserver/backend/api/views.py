@@ -1,4 +1,9 @@
+from pathlib import Path
+
+from django.http import FileResponse
+from django.http import HttpResponseNotFound
 from django_filters import rest_framework as filters
+from rest_framework import parsers
 from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.exceptions import PermissionDenied
@@ -136,6 +141,56 @@ class TransactionGroupViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
+
+    def perform_destroy(self, instance):
+        if instance.owner != self.request.user:
+            raise PermissionDenied(delete_permission_denied_msg)
+        return super().perform_destroy(instance)
+
+
+# TODO: Add bulk create support for creating images alongside document scan
+class DocumentScanViewSet(viewsets.ModelViewSet):
+    queryset = models.DocumentScan.objects.all()
+    serializer_class = serializers.DocumentScanSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+
+    def get_queryset(self):
+        return self.queryset.filter(owner=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+    def perform_destroy(self, instance):
+        if instance.owner != self.request.user:
+            raise PermissionDenied(delete_permission_denied_msg)
+        return super().perform_destroy(instance)
+
+
+# TODO: Add bulk create support
+class ImageViewSet(viewsets.ModelViewSet):
+    queryset = models.Image.objects.all()
+    serializer_class = serializers.ImageSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+    parser_classes = (parsers.MultiPartParser,)
+    # We don't need to update images
+    http_method_names = ["get", "post", "delete", "head", "options"]
+
+    def get_queryset(self):
+        return self.queryset.filter(owner=self.request.user)
+
+    def perform_create(self, serializer):
+        source = models.DocumentScan.objects.get(id=self.request.data.get("source"))
+        serializer.save(owner=self.request.user, source=source)
+
+    def retrieve(self, request, pk=None):
+        try:
+            image = self.get_queryset().get(pk=pk)
+        except models.Image.DoesNotExist:
+            return HttpResponseNotFound()
+        with Path.open(image.image.path, "rb") as img:
+            return FileResponse(img, content_type="image/*")
 
     def perform_destroy(self, instance):
         if instance.owner != self.request.user:

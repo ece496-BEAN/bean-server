@@ -12,6 +12,8 @@ router.register(r"transactions", views.TransactionViewSet)
 router.register(r"transaction-groups", views.TransactionGroupViewSet)
 router.register(r"categories", views.CategoryViewSet)
 router.register(r"budgets", views.BudgetViewSet)
+router.register(r"images", views.ImageViewSet)
+router.register(r"document-scans", views.DocumentScanViewSet)
 
 app_name = "api"
 urlpatterns = [path("", include(router.urls))]

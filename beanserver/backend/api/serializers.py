@@ -353,3 +353,17 @@ class TransactionGroupSerializer(serializers.ModelSerializer):
                 # Create new transactions
                 models.Transaction.objects.bulk_create(newly_created_transactions)
         return instance
+
+
+class ImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Image
+        exclude = ["owner"]
+
+
+class DocumentScanSerializer(serializers.ModelSerializer):
+    images = ImageSerializer(many=True, required=False)  # Nested serializer
+
+    class Meta:
+        model = models.DocumentScan
+        fields = ["id", "images", "ocr_result"]
