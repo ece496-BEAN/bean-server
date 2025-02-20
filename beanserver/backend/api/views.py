@@ -189,10 +189,14 @@ class ImageViewSet(viewsets.ModelViewSet):
             image = self.get_queryset().get(pk=pk)
         except models.Image.DoesNotExist:
             return HttpResponseNotFound()
-        with Path.open(image.image.path, "rb") as img:
-            return FileResponse(img, content_type="image/*")
+        return FileResponse(Path.open(image.image.path, "rb"), content_type="image/*")
 
     def perform_destroy(self, instance):
         if instance.owner != self.request.user:
             raise PermissionDenied(delete_permission_denied_msg)
-        return super().perform_destroy(instance)
+        if instance.image:
+            file_path = Path(instance.image.path)
+            if file_path.is_file():
+                file_path.unlink()
+        super().perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
