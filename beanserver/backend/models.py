@@ -2,6 +2,7 @@
 import datetime
 import uuid
 
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
@@ -36,6 +37,15 @@ class Budget(models.Model):
     def in_budget_time_period(self, date: datetime.datetime) -> bool:
         return self.start_date <= date <= self.end_date
 
+    def clean(self):
+        if self.start_date and self.end_date and self.start_date >= self.end_date:
+            error_message = (
+                f"End date ({self.end_date}) must be after "
+                f"start date ({self.start_date})."
+            )
+            raise ValidationError({"end_date": error_message})
+        super().clean()
+
 
 class Category(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -51,8 +61,25 @@ class Category(models.Model):
         null=True,
     )
 
+    class Meta:
+        # Ensure that the owner and name are unique together
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner", "name"],
+                name="unique_owner_category_name",
+            ),
+        ]
+
     def __str__(self) -> str:
         return "Category: " + self.name
+
+    # Custom delete method to prevent deletion of categories that are in use
+    def delete(self, *args, **kwargs):
+        if self.budget_items.exists() or self.transactions.exists():
+            self.legacy = True  # Set to legacy instead of deleting
+            self.save()
+            return
+        super().delete(*args, **kwargs)  # Proceed with deletion if no related objects
 
 
 class BudgetItem(models.Model):
@@ -85,19 +112,40 @@ class BudgetItem(models.Model):
 class DocumentScans(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     ocr_result = models.TextField()  # Use TextField since this field can be very big
-    ## TODO: (Figure out how to get this to work)
-    invoice_image = models.ImageField(upload_to="images/")
     # Delete all user owned data when user is deleted
     # TODO: (Need to add a `post_delete` signal handler to delete the files as well)
     owner = models.ForeignKey(
         User,
         related_name="doc_scans",
         on_delete=models.CASCADE,
-        null=True,
+        null=False,
     )
 
     def __str__(self) -> str:
         return "DocumentScan: " + self.id
+
+
+class Image(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    image = models.ImageField(upload_to="images/")
+    source = models.ForeignKey(
+        DocumentScans,
+        related_name="images",
+        on_delete=models.CASCADE,
+        null=False,
+        blank=False,
+    )
+    # Delete all user owned data when user is deleted
+    # TODO: (Need to add a `post_delete` signal handler to delete the files as well)
+    owner = models.ForeignKey(
+        User,
+        related_name="images",
+        on_delete=models.CASCADE,
+        null=True,
+    )
+
+    def __str__(self) -> str:
+        return "Image: " + self.id
 
 
 class TransactionGroup(models.Model):

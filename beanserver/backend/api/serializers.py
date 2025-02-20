@@ -1,9 +1,14 @@
 from django.db import transaction
 from rest_framework import serializers
+from rest_framework.exceptions import NotFound
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.exceptions import ValidationError
 
 from beanserver.backend import models
+
+category_not_found = (
+    "Category with ID {category_id} not found or you do not own this category."
+)
 
 
 class BudgetItemSerializer(serializers.ModelSerializer):
@@ -14,16 +19,43 @@ class BudgetItemSerializer(serializers.ModelSerializer):
         allow_null=True,
     )  # Writable ID field
 
-    # TODO: add writable category_id field (need to add error handling as well 4
-    # for updating to non-existent or non-owned categories)
+    category_uuid = serializers.UUIDField(
+        write_only=True,
+        required=False,
+        allow_null=True,
+    )  # Writable ID field for category
 
     class Meta:
         model = models.BudgetItem
-        fields = ["id", "uuid", "category_id", "budget_id", "allocation"]
-        read_only_fields = ["id"]
+        fields = [
+            "id",
+            "uuid",
+            "category_id",
+            "category_uuid",
+            "budget_id",
+            "allocation",
+        ]
+        read_only_fields = ["id", "budget_id"]
         # If group_id is not set at all, it'll be caught by
         # the NOT NULL requirement in the database
         extra_kwargs = {"budget_id": {"required": False}}
+
+    def create(self, validated_data):
+        category_id = validated_data.pop("category_id", None)
+        try:
+            category = models.Category.objects.get(
+                id=category_id.id,
+                owner=self.context["request"].user,
+            )
+        except models.Category.DoesNotExist as err:
+            raise NotFound(
+                category_not_found.format(category_id=category_id),
+            ) from err
+        return models.BudgetItem.objects.create(
+            category_id=category,
+            owner=self.context["request"].user,
+            **validated_data,
+        )
 
     def update(self, instance, validated_data):
         if instance.owner.id != self.context["request"].user.id:
@@ -31,6 +63,19 @@ class BudgetItemSerializer(serializers.ModelSerializer):
                 "You do not have permission to update this budget item."
             )
             raise PermissionDenied(permission_denied_msg)
+        new_category_id = validated_data.pop("category_id", None)
+        if new_category_id:
+            # Check if the category exists and is owned by the user
+            try:
+                category = models.Category.objects.get(
+                    id=new_category_id.id,
+                    owner=self.context["request"].user,
+                )
+                instance.category_id = category
+            except models.Category.DoesNotExist as err:
+                raise NotFound(
+                    category_not_found.format(category_id=new_category_id),
+                ) from err
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
@@ -53,15 +98,27 @@ class BudgetSerializer(serializers.ModelSerializer):
                 **validated_data,
             )
             if budget_items_data:
-                data = [
-                    models.BudgetItem(
-                        budget_id=new_budget,
-                        owner=self.context["request"].user,
-                        **transaction_data,
+                budget_item_objects = []
+                for budget_item in budget_items_data:
+                    category_id = budget_item.pop("category_id")  # Should not be None
+                    try:
+                        category = models.Category.objects.get(
+                            id=category_id.id,
+                            owner=self.context["request"].user,
+                        )
+                        budget_item["category_id"] = category
+                    except models.Category.DoesNotExist as err:
+                        raise NotFound(
+                            category_not_found.format(category_id=category_id),
+                        ) from err
+                    budget_item_objects.append(
+                        models.BudgetItem(
+                            budget_id=new_budget,
+                            owner=self.context["request"].user,
+                            **budget_item,
+                        ),
                     )
-                    for transaction_data in budget_items_data
-                ]
-                models.BudgetItem.objects.bulk_create(data)
+                models.BudgetItem.objects.bulk_create(budget_item_objects)
         return new_budget
 
     def update(self, instance, validated_data):
@@ -84,9 +141,6 @@ class BudgetSerializer(serializers.ModelSerializer):
 
             newly_created_budget_items: list[models.BudgetItem] = []
             updated_budget_items: list[models.BudgetItem] = []
-            # TODO: Need to add error handling as well for updating
-            # to non-existent or non-owned categories
-            # FIXME: Currently no field to update category_id
 
             for budget_item_data in budget_items_data:
                 budget_item_id = budget_item_data.get("uuid", None)
@@ -102,7 +156,7 @@ class BudgetSerializer(serializers.ModelSerializer):
                             )
                             raise PermissionDenied(permission_denied_msg)
                         for attr, value in budget_item_data.items():
-                            if attr not in ("group_id", "uuid"):
+                            if attr not in ("budget_id", "uuid"):
                                 # Don't try to update the budget_id or uuid
                                 setattr(budget_item_instance, attr, value)
                         updated_budget_items.append(budget_item_instance)
@@ -124,8 +178,6 @@ class BudgetSerializer(serializers.ModelSerializer):
                     )
 
                 # Update budget items in bulk (assumes we don't change `budget_id`)
-                # TODO: add category_id to the list of fields to update
-                # (need to add error handling)
                 models.BudgetItem.objects.bulk_update(
                     updated_budget_items,
                     ["allocation", "category_id"],
@@ -155,6 +207,24 @@ class CategorySerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
         return instance
+
+    def create(self, validated_data):
+        try:
+            with transaction.atomic():
+                existing_category = models.Category.objects.get(
+                    name=validated_data["name"],
+                    owner=self.context["request"].user,
+                )
+                existing_category.legacy = False  # Remove the legacy flag
+                existing_category.description = validated_data.get(
+                    "description",
+                    existing_category.description,
+                )
+                existing_category.save()
+                return existing_category
+
+        except models.Category.DoesNotExist:
+            return super().create(validated_data)
 
 
 class TransactionSerializer(serializers.ModelSerializer):
