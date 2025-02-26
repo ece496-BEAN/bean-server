@@ -11,7 +11,48 @@ category_not_found = (
 )
 
 
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Category
+        exclude = ["owner"]
+
+    def update(self, instance, validated_data):
+        if instance.owner.id != self.context["request"].user.id:
+            permission_denied_msg = (
+                "You do not have permission to update this category."
+            )
+            raise PermissionDenied(permission_denied_msg)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+
+    def create(self, validated_data):
+        try:
+            with transaction.atomic():
+                existing_category = models.Category.objects.get(
+                    name=validated_data["name"],
+                    owner=self.context["request"].user,
+                )
+                existing_category.legacy = False  # Remove the legacy flag
+                existing_category.description = validated_data.get(
+                    "description",
+                    existing_category.description,
+                )
+                existing_category.save()
+                return existing_category
+
+        except models.Category.DoesNotExist:
+            return super().create(validated_data)
+
+
 class BudgetItemSerializer(serializers.ModelSerializer):
+    category = CategorySerializer(
+        many=False,
+        read_only=True,
+        source="category_id",
+    )  # Nested serializer for GET Requests
+    category_uuid = serializers.UUIDField(write_only=True, source="category_id.id")
     # Used for bulk updating via nested serializers
     uuid = serializers.UUIDField(
         write_only=True,
@@ -19,29 +60,25 @@ class BudgetItemSerializer(serializers.ModelSerializer):
         allow_null=True,
     )  # Writable ID field
 
-    category_uuid = serializers.UUIDField(
-        write_only=True,
-        required=False,
-        allow_null=True,
-    )  # Writable ID field for category
-
     class Meta:
         model = models.BudgetItem
         fields = [
             "id",
             "uuid",
-            "category_id",
+            "category",
             "category_uuid",
             "budget_id",
             "allocation",
         ]
-        read_only_fields = ["id", "budget_id"]
+        read_only_fields = ["id", "budget_id", "category"]
         # If group_id is not set at all, it'll be caught by
         # the NOT NULL requirement in the database
-        extra_kwargs = {"budget_id": {"required": False}}
+        extra_kwargs = {
+            "budget_id": {"required": False},
+        }
 
     def create(self, validated_data):
-        category_id = validated_data.pop("category_id", None)
+        category_id = validated_data.pop("category_uuid", None)
         try:
             category = models.Category.objects.get(
                 id=category_id.id,
@@ -63,7 +100,7 @@ class BudgetItemSerializer(serializers.ModelSerializer):
                 "You do not have permission to update this budget item."
             )
             raise PermissionDenied(permission_denied_msg)
-        new_category_id = validated_data.pop("category_id", None)
+        new_category_id = validated_data.pop("category_uuid", None)
         if new_category_id:
             # Check if the category exists and is owned by the user
             try:
@@ -100,13 +137,13 @@ class BudgetSerializer(serializers.ModelSerializer):
             if budget_items_data:
                 budget_item_objects = []
                 for budget_item in budget_items_data:
-                    category_id = budget_item.pop("category_id")  # Should not be None
+                    category_id = budget_item.pop("category_uuid")  # Should not be None
                     try:
                         category = models.Category.objects.get(
                             id=category_id.id,
                             owner=self.context["request"].user,
                         )
-                        budget_item["category_id"] = category
+                        budget_item["category_uuid"] = category
                     except models.Category.DoesNotExist as err:
                         raise NotFound(
                             category_not_found.format(category_id=category_id),
@@ -192,42 +229,13 @@ class BudgetSerializer(serializers.ModelSerializer):
         return instance
 
 
-class CategorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = models.Category
-        exclude = ["owner"]
-
-    def update(self, instance, validated_data):
-        if instance.owner.id != self.context["request"].user.id:
-            permission_denied_msg = (
-                "You do not have permission to update this category."
-            )
-            raise PermissionDenied(permission_denied_msg)
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        return instance
-
-    def create(self, validated_data):
-        try:
-            with transaction.atomic():
-                existing_category = models.Category.objects.get(
-                    name=validated_data["name"],
-                    owner=self.context["request"].user,
-                )
-                existing_category.legacy = False  # Remove the legacy flag
-                existing_category.description = validated_data.get(
-                    "description",
-                    existing_category.description,
-                )
-                existing_category.save()
-                return existing_category
-
-        except models.Category.DoesNotExist:
-            return super().create(validated_data)
-
-
 class TransactionSerializer(serializers.ModelSerializer):
+    category = CategorySerializer(
+        many=False,
+        read_only=True,
+        source="category_id",
+    )  # Nested serializer for GET Requests
+    category_uuid = serializers.UUIDField(write_only=True, source="category_id.id")
     # Used for bulk updating via nested serializers
     uuid = serializers.UUIDField(
         write_only=True,
@@ -237,8 +245,17 @@ class TransactionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.Transaction
-        fields = ["id", "uuid", "group_id", "amount", "name", "category", "description"]
-        read_only_fields = ["id"]
+        fields = [
+            "id",
+            "uuid",
+            "group_id",
+            "amount",
+            "name",
+            "category",
+            "category_uuid",
+            "description",
+        ]
+        read_only_fields = ["id", "group_id", "category"]
         # If group_id is not set at all, it'll be caught by
         # the NOT NULL requirement in the database
         extra_kwargs = {"group_id": {"required": False}}

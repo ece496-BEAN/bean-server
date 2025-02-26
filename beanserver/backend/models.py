@@ -190,7 +190,7 @@ class Transaction(models.Model):
         blank=False,
         default="Default Transaction Name",
     )
-    category = models.ForeignKey(
+    category_id = models.ForeignKey(
         Category,
         related_name="transactions",
         on_delete=models.RESTRICT,
