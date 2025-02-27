@@ -4,12 +4,16 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 from rest_framework.routers import SimpleRouter
 
-from beanserver.backend.api.views import BudgetList
-from beanserver.users.api.views import UserViewSet
+from beanserver.backend.api import views
 
 router = DefaultRouter() if settings.DEBUG else SimpleRouter()
 
-router.register("users", UserViewSet)
+router.register(r"transactions", views.TransactionViewSet)
+router.register(r"transaction-groups", views.TransactionGroupViewSet)
+router.register(r"categories", views.CategoryViewSet)
+router.register(r"budgets", views.BudgetViewSet)
+router.register(r"images", views.ImageViewSet)
+router.register(r"document-scans", views.DocumentScanViewSet)
 
 app_name = "api"
-urlpatterns = [path("", include(router.urls)), path("budgets/", BudgetList.as_view())]
+urlpatterns = [path("", include(router.urls))]
