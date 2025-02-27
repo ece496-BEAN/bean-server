@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import transaction
 from rest_framework import serializers
 from rest_framework.exceptions import NotFound
@@ -11,7 +13,10 @@ category_not_found = (
 )
 
 
-def verify_category_ownership(category_id: str, user: models.User) -> models.Category:
+def verify_category_ownership(
+    category_id: uuid.UUID,
+    user: models.User,
+) -> models.Category:
     try:
         return models.Category.objects.get(
             id=category_id,
