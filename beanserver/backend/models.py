@@ -105,6 +105,15 @@ class BudgetItem(models.Model):
         null=True,
     )
 
+    class Meta:
+        # Ensure that the each budget instance can't have a duplicate category
+        constraints = [
+            models.UniqueConstraint(
+                fields=["category_id", "budget_id"],
+                name="budget_unique_category",
+            ),
+        ]
+
     def __str__(self) -> str:
         return "BudgetItem: " + self.category_id.name
 
