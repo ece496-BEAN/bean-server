@@ -11,6 +11,18 @@ category_not_found = (
 )
 
 
+def verify_category_ownership(category_id: str, user: models.User) -> models.Category:
+    try:
+        return models.Category.objects.get(
+            id=category_id,
+            owner=user,
+        )
+    except models.Category.DoesNotExist as err:
+        raise NotFound(
+            category_not_found.format(category_id=category_id),
+        ) from err
+
+
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Category
@@ -52,7 +64,7 @@ class BudgetItemSerializer(serializers.ModelSerializer):
         read_only=True,
         source="category_id",
     )  # Nested serializer for GET Requests
-    category_uuid = serializers.UUIDField(write_only=True, source="category_id.id")
+    category_uuid = serializers.UUIDField(write_only=True)
     # Used for bulk updating via nested serializers
     uuid = serializers.UUIDField(
         write_only=True,
@@ -79,18 +91,9 @@ class BudgetItemSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         category_id = validated_data.pop("category_uuid", None)
-        try:
-            category = models.Category.objects.get(
-                id=category_id.id,
-                owner=self.context["request"].user,
-            )
-        except models.Category.DoesNotExist as err:
-            raise NotFound(
-                category_not_found.format(category_id=category_id),
-            ) from err
+        category = verify_category_ownership(category_id, self.context["request"].user)
         return models.BudgetItem.objects.create(
             category_id=category,
-            owner=self.context["request"].user,
             **validated_data,
         )
 
@@ -103,16 +106,11 @@ class BudgetItemSerializer(serializers.ModelSerializer):
         new_category_id = validated_data.pop("category_uuid", None)
         if new_category_id:
             # Check if the category exists and is owned by the user
-            try:
-                category = models.Category.objects.get(
-                    id=new_category_id.id,
-                    owner=self.context["request"].user,
-                )
-                instance.category_id = category
-            except models.Category.DoesNotExist as err:
-                raise NotFound(
-                    category_not_found.format(category_id=new_category_id),
-                ) from err
+            instance.category_id = verify_category_ownership(
+                new_category_id,
+                self.context["request"].user,
+            )
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
@@ -138,18 +136,13 @@ class BudgetSerializer(serializers.ModelSerializer):
                 budget_item_objects = []
                 for budget_item in budget_items_data:
                     category_id = budget_item.pop("category_uuid")  # Should not be None
-                    try:
-                        category = models.Category.objects.get(
-                            id=category_id.id,
-                            owner=self.context["request"].user,
-                        )
-                        budget_item["category_uuid"] = category
-                    except models.Category.DoesNotExist as err:
-                        raise NotFound(
-                            category_not_found.format(category_id=category_id),
-                        ) from err
+                    category = verify_category_ownership(
+                        category_id,
+                        self.context["request"].user,
+                    )
                     budget_item_objects.append(
                         models.BudgetItem(
+                            category_id=category,
                             budget_id=new_budget,
                             owner=self.context["request"].user,
                             **budget_item,
@@ -181,6 +174,7 @@ class BudgetSerializer(serializers.ModelSerializer):
 
             for budget_item_data in budget_items_data:
                 budget_item_id = budget_item_data.get("uuid", None)
+                new_category_id = budget_item_data.pop("category_uuid")
                 if budget_item_id:
                     try:
                         # Update existing budget item instance
@@ -192,6 +186,13 @@ class BudgetSerializer(serializers.ModelSerializer):
                                 "You do not have permission to update this budget item."
                             )
                             raise PermissionDenied(permission_denied_msg)
+                        if new_category_id:
+                            budget_item_instance.category_id = (
+                                verify_category_ownership(
+                                    new_category_id,
+                                    self.context["request"].user,
+                                )
+                            )
                         for attr, value in budget_item_data.items():
                             if attr not in ("budget_id", "uuid"):
                                 # Don't try to update the budget_id or uuid
@@ -206,26 +207,31 @@ class BudgetSerializer(serializers.ModelSerializer):
                 else:
                     # Prevent group_id from being set by the user
                     budget_item_data.pop("budget_id", None)
+                    category = verify_category_ownership(
+                        new_category_id,
+                        self.context["request"].user,
+                    )
                     newly_created_budget_items.append(
                         models.BudgetItem(
-                            group_id=instance,
+                            budget_id=instance,
                             owner=self.context["request"].user,
+                            category_id=category,
                             **budget_item_data,
                         ),
                     )
+            # Update budget items in bulk (assumes we don't change `budget_id`)
+            models.BudgetItem.objects.bulk_update(
+                updated_budget_items,
+                ["allocation", "category_id"],
+            )
 
-                # Update budget items in bulk (assumes we don't change `budget_id`)
-                models.BudgetItem.objects.bulk_update(
-                    updated_budget_items,
-                    ["allocation", "category_id"],
-                )
+            # Delete budget items that were not updated
+            instance.budget_items.exclude(
+                id__in=[item.id for item in updated_budget_items],
+            ).delete()
+            # Create new transactions
+            models.BudgetItem.objects.bulk_create(newly_created_budget_items)
 
-                # Delete budget items that were not updated
-                instance.budget_items.exclude(
-                    id__in=[item.id for item in updated_budget_items],
-                ).delete()
-                # Create new transactions
-                models.BudgetItem.objects.bulk_create(newly_created_budget_items)
         return instance
 
 
@@ -235,7 +241,7 @@ class TransactionSerializer(serializers.ModelSerializer):
         read_only=True,
         source="category_id",
     )  # Nested serializer for GET Requests
-    category_uuid = serializers.UUIDField(write_only=True, source="category_id.id")
+    category_uuid = serializers.UUIDField(write_only=True)
     # Used for bulk updating via nested serializers
     uuid = serializers.UUIDField(
         write_only=True,
@@ -260,12 +266,28 @@ class TransactionSerializer(serializers.ModelSerializer):
         # the NOT NULL requirement in the database
         extra_kwargs = {"group_id": {"required": False}}
 
+    def create(self, validated_data):
+        category_id = validated_data.pop("category_uuid", None)
+        category = verify_category_ownership(category_id, self.context["request"].user)
+        return models.Transaction.objects.create(
+            category_id=category,
+            **validated_data,
+        )
+
+    # TODO: Need to verify if `category_id` is properly updated
     def update(self, instance, validated_data):
         if instance.owner.id != self.context["request"].user.id:
             permission_denied_msg = (
                 "You do not have permission to update this transaction."
             )
             raise PermissionDenied(permission_denied_msg)
+        new_category_id = validated_data.pop("category_uuid", None)
+        if new_category_id:
+            # Check if the category exists and is owned by the user
+            instance.category_id = verify_category_ownership(
+                new_category_id,
+                self.context["request"].user,
+            )
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
@@ -288,17 +310,24 @@ class TransactionGroupSerializer(serializers.ModelSerializer):
                 **validated_data,
             )
             if transactions_data:
-                data = [
-                    models.Transaction(
-                        group_id=new_group,
-                        owner=self.context["request"].user,
-                        **transaction_data,
+                transactions_data_objects = []
+                for transaction_data in transactions_data:
+                    category_id = transaction_data.pop("category_uuid")
+                    transaction_data["category_id"] = verify_category_ownership(
+                        category_id,
+                        self.context["request"].user,
                     )
-                    for transaction_data in transactions_data
-                ]
-                models.Transaction.objects.bulk_create(data)
+                    transactions_data_objects.append(
+                        models.Transaction(
+                            group_id=new_group,
+                            owner=self.context["request"].user,
+                            **transaction_data,
+                        ),
+                    )
+                models.Transaction.objects.bulk_create(transactions_data_objects)
         return new_group
 
+    # TODO: Add validation for the source field
     def update(self, instance, validated_data):
         if instance.owner.id != self.context["request"].user.id:
             permission_denied_msg = (
@@ -323,6 +352,7 @@ class TransactionGroupSerializer(serializers.ModelSerializer):
 
             for transaction_data in transactions_data:
                 transaction_id = transaction_data.get("uuid", None)
+                new_category_id = transaction_data.pop("category_uuid")
                 if transaction_id:
                     try:
                         # Update existing transaction
@@ -334,7 +364,13 @@ class TransactionGroupSerializer(serializers.ModelSerializer):
                                 "You do not have permission to update this transaction."
                             )
                             raise PermissionDenied(permission_denied_msg)
-
+                        if new_category_id:
+                            transaction_instance.category_id = (
+                                verify_category_ownership(
+                                    new_category_id,
+                                    self.context["request"].user,
+                                )
+                            )
                         for attr, value in transaction_data.items():
                             if attr not in ("group_id", "uuid"):
                                 # Don't try to update the group_id or uuid
@@ -349,26 +385,31 @@ class TransactionGroupSerializer(serializers.ModelSerializer):
                 else:
                     # Prevent group_id from being set by the user
                     transaction_data.pop("group_id", None)
+                    category = verify_category_ownership(
+                        new_category_id,
+                        self.context["request"].user,
+                    )
                     newly_created_transactions.append(
                         models.Transaction(
                             group_id=instance,
                             owner=self.context["request"].user,
+                            category_id=category,
                             **transaction_data,
                         ),
                     )
 
-                # Update transactions in bulk (assumes we don't change `group_id`)
-                models.Transaction.objects.bulk_update(
-                    updated_transactions,
-                    ["amount", "name", "category", "description"],
-                )
+            # Update transactions in bulk (assumes we don't change `group_id`)
+            models.Transaction.objects.bulk_update(
+                updated_transactions,
+                ["amount", "name", "category_id", "description"],
+            )
 
-                # Delete transactions that were not updated
-                instance.transactions.exclude(
-                    id__in=[item.id for item in updated_transactions],
-                ).delete()
-                # Create new transactions
-                models.Transaction.objects.bulk_create(newly_created_transactions)
+            # Delete transactions that were not updated
+            instance.transactions.exclude(
+                id__in=[item.id for item in updated_transactions],
+            ).delete()
+            # Create new transactions
+            models.Transaction.objects.bulk_create(newly_created_transactions)
         return instance
 
 
