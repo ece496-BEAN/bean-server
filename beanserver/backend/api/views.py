@@ -2,8 +2,10 @@ from pathlib import Path
 
 from django.http import FileResponse
 from django.http import HttpResponseNotFound
-from django_filters import rest_framework as filters
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters
 from rest_framework import parsers
+from rest_framework import serializers
 from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.exceptions import PermissionDenied
@@ -12,7 +14,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from beanserver.backend import models
-from beanserver.backend.api import serializers
+from beanserver.backend.api import serializers as bean_serializers
 from beanserver.backend.filters import BudgetFilter
 from beanserver.backend.filters import CategoryFilter
 from beanserver.backend.filters import TransactionGroupFilter
@@ -21,17 +23,23 @@ delete_permission_denied_msg = "You do not have permission to delete this object
 
 
 class StandardResultsSetPagination(PageNumberPagination):
-    page_size = 20
+    page_size = 10
     page_size_query_param = "page_size"
     max_page_size = 100
+
+    def paginate_queryset(self, queryset, request, view=None):
+        if "no_page" in request.query_params:
+            return None
+
+        return super().paginate_queryset(queryset, request, view)
 
 
 class BudgetViewSet(viewsets.ModelViewSet):
     queryset = models.Budget.objects.all()
-    serializer_class = serializers.BudgetSerializer
+    serializer_class = bean_serializers.BudgetSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
-    filter_backends = (filters.DjangoFilterBackend,)
+    filter_backends = (DjangoFilterBackend,)
     filterset_class = BudgetFilter
     ordering_fields = ["start_date", "end_date"]
     ordering = ["-start_date"]
@@ -53,7 +61,7 @@ class BudgetViewSet(viewsets.ModelViewSet):
 
 class BudgetItemViewSet(viewsets.ModelViewSet):
     queryset = models.BudgetItem.objects.all()
-    serializer_class = serializers.BudgetItemSerializer
+    serializer_class = bean_serializers.BudgetItemSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
 
@@ -71,7 +79,7 @@ class BudgetItemViewSet(viewsets.ModelViewSet):
 
 class TransactionViewSet(viewsets.ModelViewSet):
     queryset = models.Transaction.objects.all()
-    serializer_class = serializers.TransactionSerializer
+    serializer_class = bean_serializers.TransactionSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
 
@@ -89,10 +97,10 @@ class TransactionViewSet(viewsets.ModelViewSet):
 
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = models.Category.objects.all()
-    serializer_class = serializers.CategorySerializer
+    serializer_class = bean_serializers.CategorySerializer
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
-    filter_backends = (filters.DjangoFilterBackend,)
+    filter_backends = (DjangoFilterBackend,)
     filterset_class = CategoryFilter
 
     def create(self, request, *args, **kwargs):
@@ -127,17 +135,63 @@ class CategoryViewSet(viewsets.ModelViewSet):
 
 class TransactionGroupViewSet(viewsets.ModelViewSet):
     queryset = models.TransactionGroup.objects.all()
-    serializer_class = serializers.TransactionGroupSerializer
+    serializer_class = bean_serializers.TransactionGroupSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
-    filter_backends = (filters.DjangoFilterBackend,)
+    filter_backends = (DjangoFilterBackend, filters.SearchFilter)
     filterset_class = TransactionGroupFilter
     ordering_fields = ["date"]
     ordering = ["-date"]
+    search_fields = [
+        "name",
+        "description",
+        "transactions__description",
+        "transactions__name",
+    ]
 
     def get_queryset(self):
         queryset = self.queryset.filter(owner=self.request.user)
+        category_uuid = self.request.query_params.get("category_uuid")
+        if category_uuid:
+            queryset = queryset.filter(
+                transactions__category_id=category_uuid,
+            ).distinct()
+            self.serializer_class.Meta.fields = [
+                *self.serializer_class.Meta.fields,
+                "transactions",
+            ]
+            self.serializer_class.transactions = bean_serializers.TransactionSerializer(
+                many=True,
+                read_only=True,
+                source="transactions",
+            )
         return queryset.order_by(self.request.query_params.get("ordering", "-date"))
+
+    def get_serializer_class(
+        self,
+    ):  # Override get_serializer_class for category filtering
+        category_uuid = self.request.query_params.get("category_uuid")
+        if (
+            self.action in ("list", "retrieve") and category_uuid
+        ):  # Only for GET requests with filtering
+
+            class FilteredTransactionGroupSerializer(serializers.ModelSerializer):
+                transactions = serializers.SerializerMethodField()
+
+                class Meta(self.serializer_class.Meta):
+                    # Don't need to do anything here. Fields are in the parent meta
+                    pass
+
+                def get_transactions(self, obj):
+                    transactions = obj.transactions.filter(category_id=category_uuid)
+                    return bean_serializers.TransactionSerializer(
+                        transactions,
+                        many=True,
+                        context=self.context,
+                    ).data
+
+            return FilteredTransactionGroupSerializer
+        return self.serializer_class
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
@@ -151,7 +205,7 @@ class TransactionGroupViewSet(viewsets.ModelViewSet):
 # TODO: Add bulk create support for creating images alongside document scan
 class DocumentScanViewSet(viewsets.ModelViewSet):
     queryset = models.DocumentScan.objects.all()
-    serializer_class = serializers.DocumentScanSerializer
+    serializer_class = bean_serializers.DocumentScanSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
 
@@ -170,7 +224,7 @@ class DocumentScanViewSet(viewsets.ModelViewSet):
 # TODO: Add bulk create support
 class ImageViewSet(viewsets.ModelViewSet):
     queryset = models.Image.objects.all()
-    serializer_class = serializers.ImageSerializer
+    serializer_class = bean_serializers.ImageSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
     parser_classes = (parsers.MultiPartParser,)
