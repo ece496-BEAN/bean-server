@@ -38,4 +38,5 @@ class CategoryFilter(filters.FilterSet):
         fields = {
             "legacy": ["exact"],
             "name": ["exact", "icontains"],
+            "description": ["exact", "icontains"],
         }

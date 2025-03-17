@@ -1,5 +1,11 @@
 from pathlib import Path
 
+from django.db.models import DecimalField
+from django.db.models import F
+from django.db.models import Q
+from django.db.models import Sum
+from django.db.models import Value
+from django.db.models.functions import Coalesce
 from django.http import FileResponse
 from django.http import HttpResponseNotFound
 from django_filters.rest_framework import DjangoFilterBackend
@@ -100,8 +106,14 @@ class CategoryViewSet(viewsets.ModelViewSet):
     serializer_class = bean_serializers.CategorySerializer
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
-    filter_backends = (DjangoFilterBackend,)
+    filter_backends = (DjangoFilterBackend, filters.SearchFilter)
     filterset_class = CategoryFilter
+    search_fields = [
+        "name",
+        "description",
+    ]
+    ordering_fields = ["name"]
+    ordering = ["name"]
 
     def create(self, request, *args, **kwargs):
         # To Support Bulk Creation
@@ -119,8 +131,9 @@ class CategoryViewSet(viewsets.ModelViewSet):
         )
 
     def get_queryset(self):
-        return self.queryset.filter(owner=self.request.user).order_by(
-            "legacy",
+        queryset = self.queryset.filter(owner=self.request.user)
+        return queryset.order_by(
+            self.request.query_params.get("ordering", "name"),
             "name",
         )
 
@@ -166,6 +179,40 @@ class TransactionGroupViewSet(viewsets.ModelViewSet):
                 source="transactions",
             )
         return queryset.order_by(self.request.query_params.get("ordering", "-date"))
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(
+            self.get_queryset(),
+        )  # Apply filters before calculating totals
+
+        # Calculate income and expense before pagination
+        totals = queryset.aggregate(
+            income=Coalesce(
+                Sum(
+                    F("transactions__amount") * -1,
+                    filter=Q(transactions__amount__lt=0),
+                ),
+                Value(0),
+                output_field=DecimalField(),
+            ),
+            expense=Coalesce(
+                Sum("transactions__amount", filter=Q(transactions__amount__gte=0)),
+                Value(0),
+                output_field=DecimalField(),
+            ),
+        )
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            response = self.get_paginated_response(serializer.data)
+
+        else:  # no pagination
+            serializer = self.get_serializer(queryset, many=True)
+            return Response({"results": serializer.data, "totals": totals})
+
+        response.data["totals"] = totals  # Add totals to the response
+        return response
 
     def get_serializer_class(
         self,
