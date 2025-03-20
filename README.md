@@ -2,12 +2,13 @@
 
 License: MIT
 
-## Setup
+## Local Setup
 - Install `devenv` by following steps #1 and #2 of [this tutorial](https://devenv.sh/getting-started/)
 - Clone this repo.
 - `devenv shell` to enter the developer environment. This automatically gets all necessary resources like `python` and `postgres`, and makes them available on your `$PATH`.
 - `devenv up -d` to start necessary services, such as Postgres.
-
+- If this is your first time running the backend, run `./manage.py migrate` to generate the database
+- Run `./manage.py runserver` to start the backend server
 ## Project Overview
 - This is a Django project created using the [Cookiecutter Django template](https://github.com/cookiecutter/cookiecutter-django).
   - The repository structure follows [Cookiecutter Django's template](https://cookiecutter-django.readthedocs.io/en/latest/developing-locally.html#creating-your-first-django-app).
