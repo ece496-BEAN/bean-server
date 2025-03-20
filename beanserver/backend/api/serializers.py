@@ -52,6 +52,10 @@ class CategorySerializer(serializers.ModelSerializer):
                     owner=self.context["request"].user,
                 )
                 existing_category.legacy = False  # Remove the legacy flag
+                existing_category.is_income_type = validated_data.get(
+                    "is_income_type",
+                    existing_category.is_income_type,
+                )
                 existing_category.description = validated_data.get(
                     "description",
                     existing_category.description,

@@ -51,6 +51,7 @@ class Category(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100, blank=False, default="Default Category")
     description = models.CharField(max_length=255, blank=True, default="")
+    is_income_type = models.BooleanField(default=False)
     # Set using `pre_delete` signal handlers
     legacy = models.BooleanField(default=False)
     # Delete all user owned data when user is deleted

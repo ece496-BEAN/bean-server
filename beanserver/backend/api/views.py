@@ -45,10 +45,14 @@ class BudgetViewSet(viewsets.ModelViewSet):
     serializer_class = bean_serializers.BudgetSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
-    filter_backends = (DjangoFilterBackend,)
+    filter_backends = (DjangoFilterBackend, filters.SearchFilter)
     filterset_class = BudgetFilter
     ordering_fields = ["start_date", "end_date"]
     ordering = ["-start_date"]
+    search_fields = [
+        "name",
+        "description",
+    ]
 
     def get_queryset(self):
         queryset = self.queryset.filter(owner=self.request.user)
@@ -164,20 +168,7 @@ class TransactionGroupViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = self.queryset.filter(owner=self.request.user)
-        category_uuid = self.request.query_params.get("category_uuid")
-        if category_uuid:
-            queryset = queryset.filter(
-                transactions__category_id=category_uuid,
-            ).distinct()
-            self.serializer_class.Meta.fields = [
-                *self.serializer_class.Meta.fields,
-                "transactions",
-            ]
-            self.serializer_class.transactions = bean_serializers.TransactionSerializer(
-                many=True,
-                read_only=True,
-                source="transactions",
-            )
+
         return queryset.order_by(self.request.query_params.get("ordering", "-date"))
 
     def list(self, request, *args, **kwargs):
@@ -189,14 +180,17 @@ class TransactionGroupViewSet(viewsets.ModelViewSet):
         totals = queryset.aggregate(
             income=Coalesce(
                 Sum(
-                    F("transactions__amount") * -1,
-                    filter=Q(transactions__amount__lt=0),
+                    F("transactions__amount"),
+                    filter=Q(transactions__category_id__is_income_type=True),
                 ),
                 Value(0),
                 output_field=DecimalField(),
             ),
             expense=Coalesce(
-                Sum("transactions__amount", filter=Q(transactions__amount__gte=0)),
+                Sum(
+                    "transactions__amount",
+                    filter=Q(transactions__category_id__is_income_type=False),
+                ),
                 Value(0),
                 output_field=DecimalField(),
             ),
@@ -218,8 +212,11 @@ class TransactionGroupViewSet(viewsets.ModelViewSet):
         self,
     ):  # Override get_serializer_class for category filtering
         category_uuid = self.request.query_params.get("category_uuid")
-        if (
-            self.action in ("list", "retrieve") and category_uuid
+        category_type_is_income = self.request.query_params.get(
+            "category_type_is_income",
+        )
+        if self.action in ("list", "retrieve") and (
+            category_uuid or category_type_is_income
         ):  # Only for GET requests with filtering
 
             class FilteredTransactionGroupSerializer(serializers.ModelSerializer):
@@ -230,7 +227,13 @@ class TransactionGroupViewSet(viewsets.ModelViewSet):
                     pass
 
                 def get_transactions(self, obj):
-                    transactions = obj.transactions.filter(category_id=category_uuid)
+                    transactions = obj.transactions.all()
+                    if category_uuid:
+                        transactions = transactions.filter(category_id=category_uuid)
+                    if category_type_is_income:
+                        transactions = transactions.filter(
+                            category_id__is_income_type=category_type_is_income,
+                        )
                     return bean_serializers.TransactionSerializer(
                         transactions,
                         many=True,

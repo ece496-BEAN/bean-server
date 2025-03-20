@@ -7,6 +7,7 @@ class TransactionGroupFilter(filters.FilterSet):
     date_before = filters.DateFilter(field_name="date", lookup_expr="lte")
     date_after = filters.DateFilter(field_name="date", lookup_expr="gte")
     category_uuid = filters.UUIDFilter(method="filter_by_category")
+    category_type_is_income = filters.BooleanFilter(method="filter_by_category_type")
 
     class Meta:
         model = models.TransactionGroup
@@ -14,6 +15,11 @@ class TransactionGroupFilter(filters.FilterSet):
 
     def filter_by_category(self, queryset, name, value):
         return queryset.filter(transactions__category_id=value).distinct()
+
+    def filter_by_category_type(self, queryset, name, value):
+        return queryset.filter(
+            transactions__category_id__is_income_type=value,
+        ).distinct()
 
 
 class BudgetFilter(filters.FilterSet):
@@ -39,4 +45,5 @@ class CategoryFilter(filters.FilterSet):
             "legacy": ["exact"],
             "name": ["exact", "icontains"],
             "description": ["exact", "icontains"],
+            "is_income_type": ["exact"],
         }
