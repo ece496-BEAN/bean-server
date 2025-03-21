@@ -88,6 +88,16 @@ paths:
     get:
       operationId: budgets_list
       parameters:
+      - in: query
+        name: end_date_after
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: end_date_before
+        schema:
+          type: string
+          format: date
       - name: page
         required: false
         in: query
@@ -100,6 +110,22 @@ paths:
         description: Number of results to return per page.
         schema:
           type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: start_date_after
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: start_date_before
+        schema:
+          type: string
+          format: date
       tags:
       - budgets
       security:
@@ -242,6 +268,30 @@ paths:
     get:
       operationId: categories_list
       parameters:
+      - in: query
+        name: description
+        schema:
+          type: string
+      - in: query
+        name: description__icontains
+        schema:
+          type: string
+      - in: query
+        name: is_income_type
+        schema:
+          type: boolean
+      - in: query
+        name: legacy
+        schema:
+          type: boolean
+      - in: query
+        name: name
+        schema:
+          type: string
+      - in: query
+        name: name__icontains
+        schema:
+          type: string
       - name: page
         required: false
         in: query
@@ -254,6 +304,12 @@ paths:
         description: Number of results to return per page.
         schema:
           type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
       tags:
       - categories
       security:
@@ -387,6 +443,247 @@ paths:
         required: true
       tags:
       - categories
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/document-scans/:
+    get:
+      operationId: document_scans_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - document-scans
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDocumentScanList'
+          description: ''
+    post:
+      operationId: document_scans_create
+      tags:
+      - document-scans
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentScan'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DocumentScan'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DocumentScan'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentScan'
+          description: ''
+  /api/document-scans/{id}/:
+    get:
+      operationId: document_scans_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this document scan.
+        required: true
+      tags:
+      - document-scans
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentScan'
+          description: ''
+    put:
+      operationId: document_scans_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this document scan.
+        required: true
+      tags:
+      - document-scans
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentScan'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DocumentScan'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DocumentScan'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentScan'
+          description: ''
+    patch:
+      operationId: document_scans_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this document scan.
+        required: true
+      tags:
+      - document-scans
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedDocumentScan'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedDocumentScan'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedDocumentScan'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentScan'
+          description: ''
+    delete:
+      operationId: document_scans_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this document scan.
+        required: true
+      tags:
+      - document-scans
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/images/:
+    get:
+      operationId: images_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - images
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedImageList'
+          description: ''
+    post:
+      operationId: images_create
+      tags:
+      - images
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Image'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Image'
+          description: ''
+  /api/images/{id}/:
+    get:
+      operationId: images_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this image.
+        required: true
+      tags:
+      - images
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Image'
+          description: ''
+    delete:
+      operationId: images_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this image.
+        required: true
+      tags:
+      - images
       security:
       - jwtAuth: []
       responses:
@@ -541,6 +838,15 @@ paths:
       operationId: transaction_groups_list
       parameters:
       - in: query
+        name: category_type_is_income
+        schema:
+          type: boolean
+      - in: query
+        name: category_uuid
+        schema:
+          type: string
+          format: uuid
+      - in: query
         name: date_after
         schema:
           type: string
@@ -562,6 +868,12 @@ paths:
         description: Number of results to return per page.
         schema:
           type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
       tags:
       - transaction-groups
       security:
@@ -1038,19 +1350,29 @@ components:
           format: uuid
           writeOnly: true
           nullable: true
-        category_id:
+        category:
+          allOf:
+          - $ref: '#/components/schemas/Category'
+          readOnly: true
+        category_uuid:
           type: string
           format: uuid
+          writeOnly: true
         budget_id:
           type: string
           format: uuid
+          readOnly: true
         allocation:
-          type: integer
-          maximum: 2147483647
-          minimum: -2147483648
+          type: number
+          format: double
+          maximum: 10000000000
+          minimum: -10000000000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
       required:
-      - allocation
-      - category_id
+      - budget_id
+      - category
+      - category_uuid
       - id
     Category:
       type: object
@@ -1065,10 +1387,45 @@ components:
         description:
           type: string
           maxLength: 255
+        is_income_type:
+          type: boolean
         legacy:
           type: boolean
       required:
       - id
+    DocumentScan:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/Image'
+        ocr_result:
+          type: string
+      required:
+      - id
+      - ocr_result
+    Image:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        image:
+          type: string
+          format: uri
+        source:
+          type: string
+          format: uuid
+      required:
+      - id
+      - image
+      - source
     PaginatedBudgetList:
       type: object
       required:
@@ -1115,6 +1472,52 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Category'
+    PaginatedDocumentScanList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentScan'
+    PaginatedImageList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Image'
     PaginatedTransactionGroupList:
       type: object
       required:
@@ -1197,8 +1600,23 @@ components:
         description:
           type: string
           maxLength: 255
+        is_income_type:
+          type: boolean
         legacy:
           type: boolean
+    PatchedDocumentScan:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/Image'
+        ocr_result:
+          type: string
     PatchedTransaction:
       type: object
       properties:
@@ -1214,16 +1632,25 @@ components:
         group_id:
           type: string
           format: uuid
+          readOnly: true
         amount:
-          type: integer
-          maximum: 2147483647
-          minimum: -2147483648
+          type: number
+          format: double
+          maximum: 10000000000
+          minimum: -10000000000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
         name:
           type: string
           maxLength: 100
         category:
+          allOf:
+          - $ref: '#/components/schemas/Category'
+          readOnly: true
+        category_uuid:
           type: string
           format: uuid
+          writeOnly: true
         description:
           type: string
           maxLength: 255
@@ -1314,21 +1741,32 @@ components:
         group_id:
           type: string
           format: uuid
+          readOnly: true
         amount:
-          type: integer
-          maximum: 2147483647
-          minimum: -2147483648
+          type: number
+          format: double
+          maximum: 10000000000
+          minimum: -10000000000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
         name:
           type: string
           maxLength: 100
         category:
+          allOf:
+          - $ref: '#/components/schemas/Category'
+          readOnly: true
+        category_uuid:
           type: string
           format: uuid
+          writeOnly: true
         description:
           type: string
           maxLength: 255
       required:
       - category
+      - category_uuid
+      - group_id
       - id
     TransactionGroup:
       type: object
