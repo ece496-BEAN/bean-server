@@ -23,8 +23,8 @@ class Budget(models.Model):
     )
 
     # Date Range of the Budget (Forced to do this by the linter)
-    start_date = models.DateField(default=timezone.now().date().replace(day=1))
-    end_date = models.DateField(
+    start_date = models.DateTimeField(default=timezone.now().date().replace(day=1))
+    end_date = models.DateTimeField(
         default=timezone.now()
         .date()
         .replace(month=timezone.now().date().month + 1, day=1)
