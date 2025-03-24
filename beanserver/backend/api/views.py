@@ -171,6 +171,21 @@ class TransactionGroupViewSet(viewsets.ModelViewSet):
 
         return queryset.order_by(self.request.query_params.get("ordering", "-date"))
 
+    def create(self, request, *args, **kwargs):
+        # To Support Bulk Creation
+        serializer = self.get_serializer(
+            data=request.data,
+            many=isinstance(request.data, list),
+        )
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED,
+            headers=headers,
+        )
+
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(
             self.get_queryset(),
