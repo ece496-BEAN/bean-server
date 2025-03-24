@@ -1,6 +1,7 @@
 import uuid
 
 from django.db import transaction
+from django.db.models import Sum
 from rest_framework import serializers
 from rest_framework.exceptions import NotFound
 from rest_framework.exceptions import PermissionDenied
@@ -80,6 +81,7 @@ class BudgetItemSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )  # Writable ID field
+    allocation_used = serializers.SerializerMethodField()
 
     class Meta:
         model = models.BudgetItem
@@ -90,8 +92,9 @@ class BudgetItemSerializer(serializers.ModelSerializer):
             "category_uuid",
             "budget_id",
             "allocation",
+            "allocation_used",
         ]
-        read_only_fields = ["id", "budget_id", "category"]
+        read_only_fields = ["id", "budget_id", "category", "allocation_used"]
         # If group_id is not set at all, it'll be caught by
         # the NOT NULL requirement in the database
         extra_kwargs = {
@@ -125,14 +128,52 @@ class BudgetItemSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
+    def get_allocation_used(self, obj):
+        budget = obj.budget_id
+        # Sum transactions within the budget's timeframe that belong to this category
+        return (
+            models.Transaction.objects.filter(
+                group_id__date__gte=budget.start_date,
+                group_id__date__lte=budget.end_date,
+                category_id=obj.category_id,
+                owner=self.context["request"].user,
+            ).aggregate(total=Sum("amount"))["total"]
+            or 0
+        )
+
 
 class BudgetSerializer(serializers.ModelSerializer):
     budget_items = BudgetItemSerializer(many=True, required=False)
+    total_allocation = serializers.SerializerMethodField()
+    total_used = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Budget
-        fields = ["id", "name", "description", "start_date", "end_date", "budget_items"]
-        read_only_fields = ["id"]
+        fields = [
+            "id",
+            "name",
+            "description",
+            "start_date",
+            "end_date",
+            "budget_items",
+            "total_allocation",
+            "total_used",
+        ]
+        read_only_fields = ["id", "total_allocation", "total_used"]
+
+    def get_budget_items(self, obj):
+        queryset = obj.budget_items.order_by("-allocation")
+        serializer = BudgetItemSerializer(
+            queryset,
+            many=True,
+            context=self.context,
+        )  # Pass context
+        return serializer.data
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        representation["budget_items"] = self.get_budget_items(instance)
+        return representation
 
     def create(self, validated_data):
         budget_items_data = validated_data.pop("budget_items", [])
@@ -242,6 +283,18 @@ class BudgetSerializer(serializers.ModelSerializer):
             models.BudgetItem.objects.bulk_create(newly_created_budget_items)
 
         return instance
+
+    def get_total_allocation(self, obj):
+        return obj.budget_items.aggregate(total=Sum("allocation"))["total"] or 0
+
+    def get_total_used(self, obj):
+        total_used = 0
+        for budget_item in obj.budget_items.all():
+            total_used += BudgetItemSerializer(
+                budget_item,
+                context=self.context,
+            ).get_allocation_used(budget_item)
+        return total_used
 
 
 class TransactionSerializer(serializers.ModelSerializer):

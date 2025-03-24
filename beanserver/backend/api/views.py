@@ -55,7 +55,10 @@ class BudgetViewSet(viewsets.ModelViewSet):
     ]
 
     def get_queryset(self):
-        queryset = self.queryset.filter(owner=self.request.user)
+        queryset = self.queryset.filter(owner=self.request.user).prefetch_related(
+            "budget_items",
+            "budget_items__category_id",
+        )  # Prefetch Budget Items
         return queryset.order_by(
             self.request.query_params.get("ordering", "-start_date"),
         )
@@ -67,6 +70,34 @@ class BudgetViewSet(viewsets.ModelViewSet):
         if instance.owner != self.request.user:
             raise PermissionDenied(delete_permission_denied_msg)
         return super().perform_destroy(instance)
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(
+                page,
+                many=True,
+                context={"request": request},
+            )
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(
+            queryset,
+            many=True,
+            context={"request": request},
+        )
+        return Response(serializer.data)
+
+    def retrieve(self, request, pk=None):
+        try:
+            instance = self.get_queryset().get(pk=pk)
+        except models.Budget.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        serializer = self.get_serializer(instance, context={"request": request})
+        return Response(serializer.data)
 
 
 class BudgetItemViewSet(viewsets.ModelViewSet):
