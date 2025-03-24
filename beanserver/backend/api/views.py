@@ -298,9 +298,5 @@ class ImageViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         if instance.owner != self.request.user:
             raise PermissionDenied(delete_permission_denied_msg)
-        if instance.image:
-            file_path = Path(instance.image.path)
-            if file_path.is_file():
-                file_path.unlink()
         super().perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
