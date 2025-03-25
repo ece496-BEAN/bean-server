@@ -63,12 +63,12 @@ class Category(models.Model):
         null=True,
     )
     color = models.CharField(
-        max_length=7,
-        default="#0062ff",  # Default to white
+        max_length=9,  # max_length to 9 to fit '#RRGGBBAA'
+        default="#e74297bf",
         validators=[
             RegexValidator(
-                regex="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$",
-                message="Color must be in #RRGGBB format",
+                regex="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{8})$",  # Allow 6 or 8 hex chars
+                message="Color must be in #RRGGBB or #RRGGBBAA format",
             ),
         ],
     )
