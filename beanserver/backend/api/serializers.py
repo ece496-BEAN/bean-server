@@ -61,6 +61,10 @@ class CategorySerializer(serializers.ModelSerializer):
                     "description",
                     existing_category.description,
                 )
+                existing_category.color = validated_data.get(
+                    "color",
+                    existing_category.color,
+                )
                 existing_category.save()
                 return existing_category
 

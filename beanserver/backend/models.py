@@ -3,6 +3,7 @@ import datetime
 import uuid
 
 from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
 
@@ -60,6 +61,16 @@ class Category(models.Model):
         related_name="category",
         on_delete=models.CASCADE,
         null=True,
+    )
+    color = models.CharField(
+        max_length=7,
+        default="#0062ff",  # Default to white
+        validators=[
+            RegexValidator(
+                regex="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$",
+                message="Color must be in #RRGGBB format",
+            ),
+        ],
     )
 
     class Meta:
