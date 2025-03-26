@@ -8,7 +8,7 @@ class UserSerializer(
 ):
     class Meta:
         model = User
-        fields = ["id", "email", "name", "password"]
+        fields = ["id", "email", "name"]
 
     def update(self, instance, validated_data):
         instance.email = validated_data.get("email", instance.email)
