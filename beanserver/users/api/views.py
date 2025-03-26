@@ -9,6 +9,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from beanserver.users.models import User
 
+from .serializers import UserPasswordUpdateSerializer
 from .serializers import UserRegistrationSerializer
 from .serializers import UserSerializer
 
@@ -61,3 +62,33 @@ class UserRegisterAPIView(APIView):
             }
             return Response(response_data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserPasswordUpdateAPIView(generics.UpdateAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = UserPasswordUpdateSerializer
+
+    def get_object(self):
+        return self.request.user  # Only allow updating the logged-in user's password
+
+    def update(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(
+            raise_exception=True,
+        )  # This will raise 400 for validation errors
+
+        user = self.request.user
+        old_password = serializer.validated_data["old_password"]  # Access old password
+        new_password = serializer.validated_data["new_password"]
+
+        if not user.check_password(old_password):  # Use check_password directly
+            return Response(
+                {"detail": "Invalid old password."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        user.set_password(new_password)
+        user.save()
+
+        return Response({"message": "Password updated successfully."})
